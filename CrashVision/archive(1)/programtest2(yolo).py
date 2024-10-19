@@ -3,9 +3,9 @@ import cv2
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.models import Sequential  # type: ignore
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout  # type: ignore
+from tensorflow.keras.utils import to_categorical  # type: ignore
 
 # Function to load images and associate with labels
 def load_images_and_labels(base_path, score_dfs):
@@ -80,7 +80,11 @@ def load_yolo_model():
     # Adjust output_layers to correctly access the layer names
     output_layers = [layer_names[i - 1] for i in unconnected_out_layers.flatten()]
     
-    return net, output_layers
+    # Load COCO class names
+    with open('./archive(1)/yolo/coco.names', 'r') as f:
+        classes = [line.strip() for line in f.readlines()]
+    
+    return net, output_layers, classes
 
 # Paths to the uploaded Excel files
 file1 = './archive(1)/SeverityScore/Severity Score Dataset with Labels/score1.xlsx'
@@ -110,13 +114,13 @@ X_train_accident, X_test_accident, y_train_accident, y_test_accident = train_tes
 model = create_cnn_model(input_shape=X_train.shape[1:])
 
 # Train the model on severity
-history = model.fit(X_train, y_train_severity, epochs=10, batch_size=32, validation_data=(X_test, y_test_severity))
+history = model.fit(X_train, y_train_severity, epochs=50, batch_size=32, validation_data=(X_test, y_test_severity))
 
 # Save the model in the recommended format
 model.save('car_crash_detection_model.keras')
 
 # Load YOLO model and COCO names
-yolo_net, output_layers = load_yolo_model()
+yolo_net, output_layers, classes = load_yolo_model()
 
 # Define colors for severity levels
 severity_colors = {
@@ -195,8 +199,9 @@ while True:
                 # Draw the bounding box with the severity color
                 cv2.rectangle(frame, (x, y), (x + w, y + h), box_color, 2)
 
-                # Display severity on the frame
-                cv2.putText(frame, f"Severity: {severity}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
+                # Label the detected object using COCO class names
+                label = str(classes[class_ids[i]])
+                cv2.putText(frame, f"{label} - Severity: {severity}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
 
     # Display the resulting frame
     cv2.imshow('Crash Detection', frame)
