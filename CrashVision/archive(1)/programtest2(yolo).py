@@ -71,8 +71,8 @@ def create_cnn_model(input_shape):
 # Load YOLO model
 def load_yolo_model():
     # Load YOLO model using the paths for weights and config
-    net = cv2.dnn.readNet("C:/Users/aryan/Desktop/CrashVision/archive(1)/yolo/yolov3.weights", 
-                           "C:/Users/aryan/Desktop/CrashVision/archive(1)/yolo/yolov3.cfg")
+    net = cv2.dnn.readNet("./archive(1)/yolo/yolov3.weights", 
+                           "./archive(1)/yolo/yolov3.cfg")
     
     layer_names = net.getLayerNames()
     unconnected_out_layers = net.getUnconnectedOutLayers()
