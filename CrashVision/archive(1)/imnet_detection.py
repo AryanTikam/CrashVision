@@ -13,6 +13,9 @@ coco_names = open('./archive(1)/yolo/coco.names').read().strip().split("\n")
 
 def get_dominant_color(roi):
     """Identifies the dominant color in a region of interest (ROI)."""
+    if roi.size == 0:  # Check if ROI is empty
+        return "Unknown", (0, 0, 0)
+    
     pixels = roi.reshape(-1, 3)
     kmeans = KMeans(n_clusters=1, n_init=10)
     kmeans.fit(pixels)
@@ -25,7 +28,7 @@ def get_dominant_color(roi):
         'White': ([200, 200, 200], [255, 255, 255]),
         'Black': ([0, 0, 0], [50, 50, 50]),
         'Silver': ([160, 160, 160], [200, 200, 200]),
-        'Yellow': ([200, 200, 0], [255, 255, 50])
+        'Yellow': ([200, 200, 0], [255, 255, 255, 50])
     }
     
     for color_name, (lower, upper) in color_ranges.items():
@@ -48,6 +51,25 @@ def preprocess_frame(frame, target_size=(224, 224)):
     rgb = cv2.cvtColor(resized, cv2.COLOR_BGR2RGB)
     preprocessed = preprocess_input(rgb.astype(np.float32))
     return np.expand_dims(preprocessed, axis=0)
+
+def draw_label(frame, text, position, bg_color=(0, 0, 0), text_color=(255, 255, 255)):
+    """Draw text label with background on frame."""
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.6
+    thickness = 2
+    padding = 5
+
+    # Get text size
+    (text_width, text_height), baseline = cv2.getTextSize(text, font, font_scale, thickness)
+    
+    # Calculate background rectangle coordinates
+    x, y = position
+    bg_rect_pt1 = (x, y - text_height - 2 * padding)
+    bg_rect_pt2 = (x + text_width + 2 * padding, y)
+    
+    # Draw background rectangle and text
+    cv2.rectangle(frame, bg_rect_pt1, bg_rect_pt2, bg_color, -1)
+    cv2.putText(frame, text, (x + padding, y - padding), font, font_scale, text_color, thickness)
 
 # Start real-time video capture
 cap = cv2.VideoCapture(0)
@@ -74,7 +96,7 @@ while True:
     severity = np.argmax(severity_pred[0])
     accident_prob = accident_pred[0][np.argmax(accident_pred[0])]
     
-    accident_detected = accident_prob > 0.7 and severity > 0  # Detect only significant accidents
+    accident_detected = accident_prob > 0.7 and severity > 0
 
     if accident_detected:
         # Perform YOLO detection for vehicles
@@ -92,9 +114,9 @@ while True:
                 class_id = np.argmax(scores)
                 confidence = scores[class_id]
                 
-                if confidence > 0.7:  # Confidence threshold increased to 70%
-                    # Filter out non-vehicle classes (optional)
-                    if class_id not in range(1, 9): 
+                if confidence > 0.7:
+                    # Filter out non-vehicle classes
+                    if class_id not in range(1, 9):
                         continue
                     
                     center_x = int(detection[0] * frame_width)
@@ -105,11 +127,19 @@ while True:
                     x = int(center_x - w / 2)
                     y = int(center_y - h / 2)
 
+                    # Ensure the bounding box coordinates are valid
+                    if x < 0 or y < 0 or x + w > frame_width or y + h > frame_height:
+                        continue
+
                     boxes.append([x, y, w, h])
                     confidences.append(float(confidence))
                     class_ids.append(class_id)
 
         indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.7, 0.4)
+
+        # Draw global accident severity indicator
+        severity_text = f"Accident Severity: {severity} (Confidence: {accident_prob:.2f})"
+        draw_label(frame, severity_text, (10, 30))
 
         # Ensure the indexes is not empty and flatten it correctly
         if len(indexes) > 0:
@@ -121,19 +151,17 @@ while True:
                 vehicle_color, dominant_rgb = get_dominant_color(roi)
                 vehicle_type = coco_names[class_ids[i]]
 
-                # Draw bounding box with severity color and vehicle info
+                # Draw bounding box with severity color
                 box_color = get_severity_color(severity)
                 cv2.rectangle(frame, (x, y), (x + w, y + h), box_color, 2)
 
-                label = f"{vehicle_type} ({vehicle_color}) - Severity: {severity} - Confidence: {accident_prob:.2f}"
-                text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.6, 2)[0]
-                cv2.rectangle(frame, (10, 30), (10 + text_size[0], 30 + text_size[1] + 10), (0, 0, 0), -1)
-                cv2.putText(frame, label, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+                # Create and draw individual vehicle label above the bounding box
+                vehicle_label = f"{vehicle_type} ({vehicle_color})"
+                draw_label(frame, vehicle_label, (x, y - 5), box_color)
+
     else:
-        label = "No Accident Detected"
-        text_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)[0]
-        cv2.rectangle(frame, (10, 30), (10 + text_size[0], 30 + text_size[1] + 10), (0, 0, 0), -1)
-        cv2.putText(frame, label, (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+        # Draw "No Accident" indicator
+        draw_label(frame, "No Accident Detected", (10, 30))
 
     cv2.imshow('Vehicle Crash Detection', frame)
 
