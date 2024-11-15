@@ -152,7 +152,8 @@ while True:
             if roi.size == 0:
                 continue
 
-            roi_resized = cv2.resize(roi, (128, 128)) / 255.0
+            # Resize the ROI to match the model's input size
+            roi_resized = cv2.resize(roi, (64, 64)) / 255.0
             roi_input = np.expand_dims(roi_resized, axis=0)
 
             severity_prediction = model.predict(roi_input)

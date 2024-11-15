@@ -127,10 +127,11 @@ X_train, X_test, y_train_severity, y_test_severity = train_test_split(X, y_sever
 model = create_cnn_model(input_shape=X_train.shape[1:])
 
 # Train the model on severity
-history = model.fit(X_train, y_train_severity, epochs=50, batch_size=32, validation_data=(X_test, y_test_severity))
+class_weights = {0: 1.5, 1: 1.0, 2: 1.0, 3: 1.0}
+history = model.fit(X_train, y_train_severity, epochs=50, batch_size=32, validation_data=(X_test, y_test_severity), class_weight=class_weights)
 
 # Save the model in the recommended format
-model.save('car_crash_detection_model_improved_with_f1.keras')
+model.save('car_crash_detection_model_improved_with_f1v2.keras')
 
 # Plot accuracy, loss, and F1-score vs. epoch
 plt.figure(figsize=(10, 6))
@@ -159,4 +160,4 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 
 plt.tight_layout()
-plt.savefig('car_crash_detection_model_metrics.png')
+plt.savefig('car_crash_detection_model_metricsv2.png')
