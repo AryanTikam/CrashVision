@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Car Crash Detection System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root {
+            --bg-primary: #1a1a1a;
+            --bg-secondary: #2d2d2d;
+            --text-primary: #ffffff;
+            --text-secondary: #b3b3b3;
+            --accent: #4f46e5;
+            --danger: #dc2626;
+            --success: #059669;
+            --warning: #d97706;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(45deg, var(--accent), #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .video-container {
+            background-color: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            position: relative;
+            aspect-ratio: 16/9;
+            overflow: hidden;
+        }
+
+        #videoFeed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 0.5rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .btn-danger {
+            background-color: var(--danger);
+            color: white;
+        }
+
+        .btn:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+
+        .status-container {
+            background-color: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 2rem;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 0.5rem;
+        }
+
+        .alert {
+            background-color: var(--danger);
+            color: white;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-primary);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+
+        #location {
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Real-Time Car Crash Detection System</h1>
+            <p>Advanced AI-powered crash detection with instant email alerts</p>
+        </div>
+
+        <div class="video-container">
+            <img id="videoFeed" src="{{ url_for('video_feed') }}" alt="Video Feed" style="display: none;">
+        </div>
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-primary">Start Detection</button>
+            <button id="stopBtn" class="btn btn-danger" disabled>Stop Detection</button>
+        </div>
+
+        <div class="status-container">
+            <div class="status">
+                <div style="display: flex; align-items: center;">
+                    <span id="statusIndicator" class="status-indicator"></span>
+                    <span id="statusText">System Inactive</span>
+                </div>
+                <div id="location">Location: Fetching...</div>
+            </div>
+
+            <div id="crashAlert" class="alert">
+                <strong>⚠️ CRASH DETECTED!</strong>
+                <p>Emergency notification has been sent with current location and crash image.</p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div id="severityLevel" class="stat-value">0</div>
+                    <div class="stat-label">Current Severity Level</div>
+                </div>
+                <div class="stat-card">
+                    <div id="detectionCount" class="stat-value">0</div>
+                    <div class="stat-label">Detections Today</div>
+                </div>
+                <div class="stat-card">
+                    <div id="confidence" class="stat-value">0%</div>
+                    <div class="stat-label">Detection Confidence</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const videoFeed = document.getElementById('videoFeed');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const crashAlert = document.getElementById('crashAlert');
+        const locationElement = document.getElementById('location');
+        const severityLevel = document.getElementById('severityLevel');
+        const detectionCount = document.getElementById('detectionCount');
+        const confidence = document.getElementById('confidence');
+
+        let detections = 0;
+
+        // Start detection
+        startBtn.addEventListener('click', () => {
+            videoFeed.style.display = 'block';
+            startBtn.disabled = true;
+            stopBtn.disabled = false;
+            statusIndicator.style.backgroundColor = 'var(--success)';
+            statusText.textContent = 'System Active';
+        });
+
+        // Stop detection
+        stopBtn.addEventListener('click', () => {
+            videoFeed.style.display = 'none';
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusIndicator.style.backgroundColor = 'var(--danger)';
+            statusText.textContent = 'System Inactive';
+            crashAlert.style.display = 'none';
+        });
+
+        // Socket.io event handlers
+        socket.on('accident_detected', (data) => {
+            crashAlert.style.display = 'block';
+            detections++;
+            detectionCount.textContent = detections;
+            
+            if (data.location) {
+                locationElement.textContent = `Location: ${data.location.city}, ${data.location.country}`;
+            }
+            
+            severityLevel.textContent = data.severity;
+            confidence.textContent = `${(data.confidence * 100).toFixed(1)}%`;
+
+            // Auto-hide alert after 5 seconds
+            setTimeout(() => {
+                crashAlert.style.display = 'none';
+            }, 5000);
+        });
+
+        // Poll status endpoint
+        async function checkStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+                if (data.accident_detected) {
+                    statusIndicator.style.backgroundColor = 'var(--warning)';
+                    statusText.textContent = 'Accident Detected';
+                }
+            } catch (error) {
+                console.error('Error checking status:', error);
+            }
+        }
+
+        // Check status every 2 seconds
+        setInterval(checkStatus, 2000);
+    </script>
+</body>
+</html>
