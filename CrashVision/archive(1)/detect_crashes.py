@@ -1,23 +1,7 @@
 import cv2
 import numpy as np
-import tensorflow as tf
 from tensorflow.keras.models import load_model  # type: ignore
-from tensorflow.keras import backend as K
-from sklearn.cluster import KMeans  # Added this import
-
-# Custom F1-score metric
-@tf.keras.utils.register_keras_serializable()
-def f1_score(y_true, y_pred):
-    """Custom F1 score metric"""
-    y_pred = K.round(y_pred)
-    tp = K.sum(K.cast(y_true * y_pred, 'float'), axis=0)
-    fp = K.sum(K.cast((1 - y_true) * y_pred, 'float'), axis=0)
-    fn = K.sum(K.cast(y_true * (1 - y_pred), 'float'), axis=0)
-
-    precision = tp / (tp + fp + K.epsilon())
-    recall = tp / (tp + fn + K.epsilon())
-    f1 = 2 * precision * recall / (precision + recall + K.epsilon())
-    return K.mean(f1)
+from sklearn.cluster import KMeans
 
 def load_yolo_model():
     net = cv2.dnn.readNet("./archive(1)/yolo/yolov3.weights", 
@@ -90,28 +74,23 @@ def get_dominant_color(roi):
     return "Unknown", dominant_color
 
 # Load the pre-trained model
-model = load_model('car_crash_detection_model_improved_with_f1v4.keras', custom_objects={'f1_score': f1_score})
+model = load_model('car_crash_detection_model_100.keras')
 
 # Load YOLO model and COCO names
 yolo_net, output_layers, classes = load_yolo_model()
 
 # Define colors for severity levels
 severity_colors = {
-    0: (0, 0, 0),    # Black for non-accident
-    1: (0, 255, 0),  # Green for severity 1 (low)
+    1: (0, 255, 0),    # Green for severity 1 (low)
     2: (0, 255, 255),  # Yellow for severity 2 (medium)
     3: (0, 0, 255)     # Red for severity 3 (high)
 }
 
 # Define the class IDs for vehicles in YOLO
-VEHICLE_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
+IGNORE_IDS = [1, 2, 3, 4, 5, 6, 7, 8]
 
 # Real-time detection
-cap = cv2.VideoCapture(0)
-
-# Define confidence thresholds
-VEHICLE_DETECTION_THRESHOLD = 0.6
-CRASH_CONFIDENCE_THRESHOLD = 0.7  # Threshold for crash detection confidence
+cap = cv2.VideoCapture(1)
 
 while True:
     ret, frame = cap.read()
@@ -132,7 +111,7 @@ while True:
             scores = detection[5:]
             class_id = np.argmax(scores)
             confidence = scores[class_id]
-            if confidence > VEHICLE_DETECTION_THRESHOLD and class_id in VEHICLE_IDS:
+            if confidence > 0.5:  # Confidence threshold
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * height)
                 w = int(detection[2] * width)
@@ -152,31 +131,30 @@ while True:
         if i in indexes:
             x, y, w, h = boxes[i]
 
-            # Extract ROI and ensure it's not empty
-            roi = frame[max(0, y):min(height, y + h), max(0, x):min(width, x + w)]
-            if roi.size == 0:
+            if class_ids[i] not in IGNORE_IDS:
                 continue
 
-            # Resize the ROI to match the model's input size
-            roi_resized = cv2.resize(roi, (64, 64)) / 255.0
-            roi_input = np.expand_dims(roi_resized, axis=0)
+            if x >= 0 and y >= 0 and x + w <= width and y + h <= height:
+                # Extract ROI and ensure it's not empty
+                roi = frame[max(0, y):min(height, y + h), max(0, x):min(width, x + w)]
+                if roi.size == 0:
+                    continue
 
-            # Get prediction probabilities for each class
-            severity_prediction = model.predict(roi_input, verbose=0)
-            severity = np.argmax(severity_prediction)
-            prediction_confidence = np.max(severity_prediction)
+                roi_resized = cv2.resize(roi, (64, 64)) / 255.0
+                roi_input = np.expand_dims(roi_resized, axis=0)
 
-            # Only show detection if it's an accident (severity > 0) and confidence is high enough
-            if severity > 0 and prediction_confidence > CRASH_CONFIDENCE_THRESHOLD:
-                # Identify the dominant color in the ROI
+                severity_prediction = model.predict(roi_input)
+                severity = np.argmax(severity_prediction) + 1
+
                 color, _ = get_dominant_color(roi)
 
+                box_color = severity_colors.get(severity, (255, 255, 255))
+
                 # Draw bounding box
-                box_color = severity_colors[severity]
                 cv2.rectangle(frame, (x, y), (x + w, y + h), box_color, 2)
                 
-                # Create label with color, severity, and confidence
-                label = f"{color} {classes[class_ids[i]]} - Severity: {severity} ({prediction_confidence:.2f})"
+                # Create label with color and vehicle type
+                label = f"{color} {classes[class_ids[i]]} - Severity: {severity}"
                 
                 # Calculate label position and size
                 font_scale = 0.5

@@ -29,9 +29,9 @@ logger = logging.getLogger(__name__)
 # Email Configuration
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "sender@gmail.com"  # Replace with your email 
-SENDER_PASSWORD = "your password"  # Replace with your app password
-RECIPIENT_EMAIL = "receiver3@spit.ac.in"  # Replace with recipient email
+SENDER_EMAIL = "aryantikam297@gmail.com"  # Replace with your email 
+SENDER_PASSWORD = "dtpq rkek ckus gdgy"  # Replace with your app password
+RECIPIENT_EMAIL = "aryan.tikam23@spit.ac.in"  # Replace with recipient email
 
 # Global variables
 camera = None
@@ -53,7 +53,7 @@ def f1_score(y_true, y_pred):
 
 # Load models
 try:
-    model = load_model('final_interrupted_model_20241119_191237.keras', 
+    model = load_model('car_crash_detection_model_improved_with_f1v4.keras', 
                       custom_objects={'f1_score': f1_score})
     net = cv2.dnn.readNet("./archive(1)/yolo/yolov3.weights", 
                          "./archive(1)/yolo/yolov3.cfg")

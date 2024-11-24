@@ -84,13 +84,13 @@ def load_images_and_labels(base_path, include_accident=True, include_non_acciden
 
     # Load severity-labeled images
     severity_images = {1: [], 2: [], 3: []}
-    for severity in range(1, 4):
-        folder_path = os.path.join(base_path, str(severity))
-        if os.path.exists(folder_path):
-            for img_filename in os.listdir(folder_path):
-                img_path = os.path.join(folder_path, img_filename)
-                severity_images[severity].append(img_path)
-                print("Read ", img_path)
+    # for severity in range(1, 4):
+    #     folder_path = os.path.join(base_path, str(severity))
+    #     if os.path.exists(folder_path):
+    #         for img_filename in os.listdir(folder_path):
+    #             img_path = os.path.join(folder_path, img_filename)
+    #             severity_images[severity].append(img_path)
+    #             print("Read ", img_path)
 
     # Load unlabeled accident images and assign random severity
     if include_accident:

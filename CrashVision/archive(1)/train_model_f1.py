@@ -1,12 +1,14 @@
 import os
 import cv2
 import numpy as np
-from sklearn.model_selection import train_test_split
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.utils import to_categorical
-from tensorflow.keras import backend as K
 import random
+from sklearn.metrics import ConfusionMatrixDisplay
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+from tensorflow.keras.models import Sequential # type: ignore
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout # type: ignore
+from tensorflow.keras.utils import to_categorical # type: ignore
+from tensorflow.keras import backend as K # type: ignore
 import matplotlib.pyplot as plt
 
 # Function to load images and labels
@@ -14,7 +16,7 @@ def load_images_and_labels(base_path, include_accident=True, include_non_acciden
     X = []
     y = []
     random.seed(42)
-    
+
     # Load non-accident images
     if include_non_accident:
         non_accident_path = os.path.join(base_path, 'NonAccident')
@@ -25,14 +27,14 @@ def load_images_and_labels(base_path, include_accident=True, include_non_acciden
             if img is not None:
                 img_resized = cv2.resize(img, (64, 64))
                 X.append(img_resized)
-                y.append(0)
+                y.append(0)  # Non-accident labeled as 0
                 
-                # Data augmentation for non-accident cases
+                # Data augmentation for non-accident cases (only rotate, no severity mixing)
                 for angle in [-15, 15]:
                     matrix = cv2.getRotationMatrix2D((32, 32), angle, 1.0)
                     rotated = cv2.warpAffine(img_resized, matrix, (64, 64))
                     X.append(rotated)
-                    y.append(0)
+                    y.append(0)  # Ensure augmented non-accident images are labeled as 0
 
     # Load severity-labeled images
     severity_images = {1: [], 2: [], 3: []}
@@ -42,9 +44,9 @@ def load_images_and_labels(base_path, include_accident=True, include_non_acciden
             for img_filename in os.listdir(folder_path):
                 img_path = os.path.join(folder_path, img_filename)
                 severity_images[severity].append(img_path)
-                print("Read ", img_path)    
+                print("Read ", img_path)
 
-    # Load unlabeled accident images and assign random severity
+    # Load unlabeled accident images and assign random severity (without mixing non-accident data)
     if include_accident:
         accident_folder = os.path.join(base_path, 'Accident')
         if os.path.exists(accident_folder):
@@ -67,7 +69,7 @@ def load_images_and_labels(base_path, include_accident=True, include_non_acciden
     target_per_severity = max(non_accident_count // 3, 
                               max(len(images) for images in severity_images.values()))
 
-    # Load and balance severity images
+    # Load and balance severity images (ensure no non-accident mixing)
     for severity, image_paths in severity_images.items():
         sampled_paths = random.choices(image_paths, k=target_per_severity)
         
@@ -130,7 +132,7 @@ model = create_cnn_model(input_shape=X_train.shape[1:])
 history = model.fit(X_train, y_train_severity, epochs=50, batch_size=32, validation_data=(X_test, y_test_severity))
 
 # Save the model in the recommended format
-model.save('car_crash_detection_model_improved_with_f1.keras')
+model.save('car_crash_detection_model_improved_with_f1v4.keras')
 
 # Plot accuracy, loss, and F1-score vs. epoch
 plt.figure(figsize=(10, 6))
@@ -159,4 +161,18 @@ plt.xlabel('Epoch')
 plt.legend(['Train', 'Test'], loc='upper left')
 
 plt.tight_layout()
-plt.savefig('car_crash_detection_model_metrics.png')
+plt.savefig('car_crash_detection_model_metricsv4.png')
+
+# Create confusion matrix
+y_pred = model.predict(X_test)
+y_true = np.argmax(y_test_severity, axis=1)
+y_pred = np.argmax(y_pred, axis=1)
+
+cm = tf.math.confusion_matrix(y_true, y_pred)
+
+plt.figure(figsize=(10, 8))
+disp = ConfusionMatrixDisplay(confusion_matrix=cm.numpy(),
+                                display_labels=['Non-Accident', 'Severity 1', 'Severity 2', 'Severity 3'])
+disp.plot(cmap=plt.cm.Blues)
+plt.title('Confusion Matrix for Car Crash Detection Model')
+plt.savefig('car_crash_detection_model_confusion_matrixv4.png')
