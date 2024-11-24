@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SENDER_EMAIL = "aryantikam297@gmail.com"  # Replace with your email 
-SENDER_PASSWORD = "dtpq rkek ckus gdgy"  # Replace with your app password
+SENDER_PASSWORD = "your key here"  # Replace with your app password
 RECIPIENT_EMAIL = "aryan.tikam23@spit.ac.in"  # Replace with recipient email
 
 # Global variables
